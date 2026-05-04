@@ -117,3 +117,34 @@ export const socialPatterns = [
   { platform: 'LinkedIn', pattern: /linkedin\.com\/company\/([\w-]+)/ },
   { platform: 'Instagram', pattern: /instagram\.com\/([\w]+)/ }
 ];
+
+export interface WAFRule {
+  name: string;
+  pattern: RegExp;
+  type: 'header' | 'cookie' | 'body' | 'status';
+}
+
+export const wafRules: WAFRule[] = [
+  { name: 'Cloudflare', type: 'header', pattern: /__cf|coudflare/i },
+  { name: 'Cloudflare', type: 'cookie', pattern: /__cfduid/i },
+  { name: 'Cloudflare', type: 'header', pattern: /server:\s*cloudflare/i },
+  { name: 'AWS WAF', type: 'header', pattern: /aws-alb\/aws-waf/i },
+  { name: 'AWS WAF', type: 'header', pattern: /x-amzn-requestid/i },
+  { name: 'ModSecurity', type: 'header', pattern: /mod_security|modsecurity/i },
+  { name: 'Sucuri', type: 'header', pattern: /X-Sucuri|X-SWR/i },
+  { name: 'Wordfence', type: 'cookie', pattern: /wordfence_verified/i },
+  { name: 'Wordfence', type: 'body', pattern: /wordfence/i },
+  { name: 'Akamai', type: 'header', pattern: /X-Akamai|AkamaiGHost/i },
+  { name: 'Fastly', type: 'header', pattern: /X-Served-By|X-Cache.*fastly/i },
+  { name: 'Imperva', type: 'cookie', pattern: /incap_ses/i },
+  { name: 'Imperva', type: 'header', pattern: /X-CDN|X-Iinfo/i },
+  { name: 'StackPath', type: 'header', pattern: /X-Page-Speed|x-srv/i },
+  { name: 'EdgeWall', type: 'header', pattern: /barracuda/i },
+  { name: 'FortiWeb', type: 'header', pattern: /fortiweb/i },
+  { name: 'F5 ASM', type: 'header', pattern: /X-F5-Auth/i },
+  { name: 'F5 ASM', type: 'cookie', pattern: /F5_ST/i },
+  { name: 'Azure WAF', type: 'header', pattern: /X-ASPNETCORE/i },
+  { name: 'CloudFront', type: 'status', pattern: /403\s+Forbidden/i },
+  { name: 'NinjaFirewall', type: 'cookie', pattern: /ninja/i },
+  { name: 'Artillery', type: 'header', pattern: /artillery/i }
+];

@@ -31,6 +31,21 @@ export interface SecurityHeader {
   status: 'secure' | 'warning' | 'missing';
 }
 
+export interface CSPReport {
+  hasCSP: boolean;
+  defaultSrc: string[];
+  scriptSrc: string[];
+  styleSrc: string[];
+  imgSrc: string[];
+  connectSrc: string[];
+  fontSrc: string[];
+  frameSrc: string[];
+  unsafeInline: boolean;
+  unsafeEval: boolean;
+  strictDynamic: boolean;
+  issues: string[];
+}
+
 export interface PerformanceMetrics {
   pageSize: number; // in KB
   domNodes: number;
@@ -104,5 +119,7 @@ export interface SiteReport {
     h2: number;
     h3: number;
   };
+  waf?: string[];
+  csp?: CSPReport;
   updatedAt: string;
 }

@@ -1,5 +1,5 @@
 import tls from 'tls';
-import type { DNSRecord, SSLCertificate, SecurityHeader } from '../../types';
+import type { DNSRecord, SSLCertificate, SecurityHeader, CSPReport } from '../../types';
 
 // Helper for fetch with timeout
 async function fetchWithTimeout(url: string, options: any = {}, timeout = 8000) {
@@ -129,6 +129,71 @@ export function analyzeHeaders(headers: Headers): SecurityHeader[] {
   });
 
   return security;
+}
+
+export function analyzeCSP(cspHeader: string | null): CSPReport {
+  const report: CSPReport = {
+    hasCSP: false,
+    defaultSrc: [],
+    scriptSrc: [],
+    styleSrc: [],
+    imgSrc: [],
+    connectSrc: [],
+    fontSrc: [],
+    frameSrc: [],
+    unsafeInline: false,
+    unsafeEval: false,
+    strictDynamic: false,
+    issues: []
+  };
+
+  if (!cspHeader || cspHeader === 'Not Detected') {
+    report.issues.push('No Content-Security-Policy header present');
+    return report;
+  }
+
+  report.hasCSP = true;
+
+  const directives = cspHeader.toLowerCase().split(';').map(d => d.trim());
+  
+  for (const directive of directives) {
+    const parts = directive.split(/\s+/);
+    const name = parts[0];
+    const values = parts.slice(1);
+
+    switch (name) {
+      case 'default-src': report.defaultSrc = values; break;
+      case 'script-src': report.scriptSrc = values; break;
+      case 'style-src': report.styleSrc = values; break;
+      case 'img-src': report.imgSrc = values; break;
+      case 'connect-src': report.connectSrc = values; break;
+      case 'font-src': report.fontSrc = values; break;
+      case 'frame-src': report.frameSrc = values; break;
+    }
+  }
+
+  const allDirectives = directives.join(' ');
+  if (allDirectives.includes("'unsafe-inline'")) {
+    report.unsafeInline = true;
+    report.issues.push('Allows unsafe-inline (XSS risk)');
+  }
+  if (allDirectives.includes("'unsafe-eval'")) {
+    report.unsafeEval = true;
+    report.issues.push('Allows unsafe-eval (code injection risk)');
+  }
+  if (allDirectives.includes("'strict-dynamic'")) {
+    report.strictDynamic = true;
+  }
+
+  if (report.defaultSrc.includes("'none'") && directives.every(d => !d.startsWith('default-src'))) {
+    report.issues.push('default-src not set - falling back to allow all');
+  }
+
+  if (report.scriptSrc.length === 0 && report.defaultSrc.length === 0) {
+    report.issues.push('No script restrictions defined');
+  }
+
+  return report;
 }
 
 export async function fetchIPInfo(ip: string): Promise<{ provider: string, location: string, latitude?: number, longitude?: number }> {

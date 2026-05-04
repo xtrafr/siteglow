@@ -1,8 +1,8 @@
 import * as cheerio from 'cheerio';
 import type { SiteReport, TechStack, SocialLink, RedFlag, Subdomain, AssetNode } from '../types';
-import { fetchDNS, fetchSSL, analyzeHeaders, fetchIPInfo } from './scanner/network';
+import { fetchDNS, fetchSSL, analyzeHeaders, fetchIPInfo, analyzeCSP } from './scanner/network';
 import { analyzeHtml } from '../scanner/analysis';
-import { techRules } from '../scanner/rules';
+import { techRules, wafRules } from '../scanner/rules';
 import { env } from '$env/dynamic/private';
 
 // Helper for fetch with timeout to prevent serverless function hangs
@@ -166,6 +166,9 @@ export async function scanUrl(targetUrl: string): Promise<SiteReport> {
     analyzeHeaders(response.headers)
   ]);
 
+  const cspHeader = response.headers.get('content-security-policy');
+  const cspReport = analyzeCSP(cspHeader);
+
   // Resolve IP Info from the first A record
   let firstA = dnsRecords.find(r => r.type === 'A')?.value;
 
@@ -280,6 +283,27 @@ export async function scanUrl(targetUrl: string): Promise<SiteReport> {
       }
     }
   });
+
+  // 5b. WAF Detection
+  const detectedWAFs = new Set<string>();
+  const cookies = response.headers.get('set-cookie') || '';
+  
+  response.headers.forEach((value, key) => {
+    for (const rule of wafRules) {
+      if (rule.type === 'header' && rule.pattern.test(`${key}: ${value}`)) {
+        detectedWAFs.add(rule.name);
+      }
+    }
+  });
+  
+  for (const rule of wafRules) {
+    if (rule.type === 'cookie' && rule.pattern.test(cookies)) {
+      detectedWAFs.add(rule.name);
+    }
+    if (rule.type === 'body' && rule.pattern.test(html)) {
+      detectedWAFs.add(rule.name);
+    }
+  }
 
   // 6. Fonts (Extreme Precision Detection)
   const foundFonts = new Set<string>();
@@ -480,6 +504,8 @@ export async function scanUrl(targetUrl: string): Promise<SiteReport> {
       h2: $('h2').length,
       h3: $('h3').length
     },
+    waf: Array.from(detectedWAFs),
+    csp: cspReport,
     assets: buildAssetTree($, finalUrl),
     updatedAt: new Date().toISOString()
   };
