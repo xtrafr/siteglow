@@ -168,6 +168,7 @@
 	let error = $derived(clientError || data.error);
 
 	let isFavorite = $derived($favorites.some((f) => f.domain === report?.domain));
+	let isIpOnly = $derived(report && /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(report.domain));
 
 	// Svelte 5 effect to handle history and client-side fallback
 	$effect(() => {
@@ -272,11 +273,11 @@
 			};
 
 			if (usedProxy) {
-				toast.info('Fetched via proxy due to site restrictions');
+				console.info('Fetched via proxy due to site restrictions');
 			}
 		} catch (err: any) {
 			clientError = err.message;
-			toast.error('Browser-side scan failed: ' + err.message);
+			console.error('Browser-side scan failed: ' + err.message);
 		} finally {
 			isScanningClient = false;
 		}
@@ -626,16 +627,18 @@ export default ${report.name.replace(/\s+/g, '')}BrandCard;
 									<div
 										class="flex flex-col items-center gap-6 text-center md:flex-row md:items-center md:text-left"
 									>
-										<div
-											class="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden border border-[var(--whois-border)] bg-[var(--whois-surface-2)] md:h-16 md:w-16"
-										>
-											<img
-												src={activeReport.favicon}
-												alt={activeReport.name}
-												class="h-12 w-12 object-contain opacity-100 transition-all md:h-10 md:w-10"
-												onerror={handleImageError}
-											/>
-										</div>
+										{#if !isIpOnly}
+											<div
+												class="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden border border-[var(--whois-border)] bg-[var(--whois-surface-2)] md:h-16 md:w-16"
+											>
+												<img
+													src={activeReport.favicon}
+													alt={activeReport.name}
+													class="h-12 w-12 object-contain opacity-100 transition-all md:h-10 md:w-10"
+													onerror={handleImageError}
+												/>
+											</div>
+										{/if}
 										<div>
 											<div class="flex flex-col items-baseline gap-3 md:flex-row">
 												<h1
@@ -649,13 +652,15 @@ export default ${report.name.replace(/\s+/g, '')}BrandCard;
 											>
 												<span class="text-xl font-bold text-[var(--whois-accent)]">$</span>
 												<span class="text-xl font-bold">{activeReport.domain}</span>
-												<a
-													href="https://{activeReport.domain}"
-													target="_blank"
-													class="flex h-6 w-6 items-center justify-center border border-[var(--whois-border)] text-[var(--whois-accent)] transition-colors hover:bg-[var(--whois-surface)]"
-												>
-													<ExternalLinkIcon size={12} />
-												</a>
+												{#if !isIpOnly}
+													<a
+														href="https://{activeReport.domain}"
+														target="_blank"
+														class="flex h-6 w-6 items-center justify-center border border-[var(--whois-border)] text-[var(--whois-accent)] transition-colors hover:bg-[var(--whois-surface)]"
+													>
+														<ExternalLinkIcon size={12} />
+													</a>
+												{/if}
 											</div>
 										</div>
 									</div>
@@ -720,37 +725,39 @@ export default ${report.name.replace(/\s+/g, '')}BrandCard;
 														<CopyIcon size={12} />
 														<span>Copy JSON</span>
 													</button>
-													<div class="my-1 h-px bg-[var(--whois-border)]"></div>
-													<button
-														onclick={() => {
-															downloadColors();
-															isExportOpen = false;
-														}}
-														class="flex w-full items-center gap-3 px-3 py-2 text-left text-[10px] font-bold tracking-widest text-[var(--whois-text-muted)] uppercase transition-colors hover:bg-[var(--whois-surface-2)] hover:text-[var(--whois-accent)]"
-													>
-														<Paintbrush size={12} />
-														<span>Export CSS</span>
-													</button>
-													<button
-														onclick={() => {
-															downloadDNS();
-															isExportOpen = false;
-														}}
-														class="flex w-full items-center gap-3 px-3 py-2 text-left text-[10px] font-bold tracking-widest text-[var(--whois-text-muted)] uppercase transition-colors hover:bg-[var(--whois-surface-2)] hover:text-[var(--whois-accent)]"
-													>
-														<Fingerprint size={12} />
-														<span>Export DNS</span>
-													</button>
-													<button
-														onclick={() => {
-															copyToClipboard(generateComponent(), 'React Component');
-															isExportOpen = false;
-														}}
-														class="flex w-full items-center gap-3 px-3 py-2 text-left text-[10px] font-bold tracking-widest text-[var(--whois-text-muted)] uppercase transition-colors hover:bg-[var(--whois-surface-2)] hover:text-[var(--whois-accent)]"
-													>
-														<CodeIcon size={12} />
-														<span>Copy Snippet</span>
-													</button>
+													{#if !isIpOnly}
+														<div class="my-1 h-px bg-[var(--whois-border)]"></div>
+														<button
+															onclick={() => {
+																downloadColors();
+																isExportOpen = false;
+															}}
+															class="flex w-full items-center gap-3 px-3 py-2 text-left text-[10px] font-bold tracking-widest text-[var(--whois-text-muted)] uppercase transition-colors hover:bg-[var(--whois-surface-2)] hover:text-[var(--whois-accent)]"
+														>
+															<Paintbrush size={12} />
+															<span>Export CSS</span>
+														</button>
+														<button
+															onclick={() => {
+																downloadDNS();
+																isExportOpen = false;
+															}}
+															class="flex w-full items-center gap-3 px-3 py-2 text-left text-[10px] font-bold tracking-widest text-[var(--whois-text-muted)] uppercase transition-colors hover:bg-[var(--whois-surface-2)] hover:text-[var(--whois-accent)]"
+														>
+															<Fingerprint size={12} />
+															<span>Export DNS</span>
+														</button>
+														<button
+															onclick={() => {
+																copyToClipboard(generateComponent(), 'React Component');
+																isExportOpen = false;
+															}}
+															class="flex w-full items-center gap-3 px-3 py-2 text-left text-[10px] font-bold tracking-widest text-[var(--whois-text-muted)] uppercase transition-colors hover:bg-[var(--whois-surface-2)] hover:text-[var(--whois-accent)]"
+														>
+															<CodeIcon size={12} />
+															<span>Copy Snippet</span>
+														</button>
+													{/if}
 												</div>
 											{/if}
 										</div>
@@ -808,310 +815,333 @@ export default ${report.name.replace(/\s+/g, '')}BrandCard;
 											</p>
 										</div>
 									</button>
-									<button
-										onclick={() => (isMapOpen = true)}
-										class="group flex min-w-[160px] shrink-0 items-center gap-3 border border-[var(--whois-border)] bg-[var(--whois-surface)] p-3 text-left transition-colors hover:bg-[var(--whois-surface-2)]"
-									>
-										<div
-											class="flex h-8 w-8 shrink-0 items-center justify-center border border-[var(--whois-border)] bg-[var(--whois-surface-2)]"
+									{#if !isIpOnly}
+										<button
+											onclick={() => (isMapOpen = true)}
+											class="group flex min-w-[160px] shrink-0 items-center gap-3 border border-[var(--whois-border)] bg-[var(--whois-surface)] p-3 text-left transition-colors hover:bg-[var(--whois-surface-2)]"
 										>
-											<MapPin size={14} class="text-[var(--whois-accent)]" />
-										</div>
-										<div>
-											<span
-												class="mb-0.5 block text-[10px] font-bold tracking-widest text-[var(--whois-text-muted)] uppercase"
-												>Location</span
+											<div
+												class="flex h-8 w-8 shrink-0 items-center justify-center border border-[var(--whois-border)] bg-[var(--whois-surface-2)]"
 											>
-											<p class="text-sm font-bold text-[var(--whois-text)]">
-												{activeReport.location || 'Unknown'}
-											</p>
+												<MapPin size={14} class="text-[var(--whois-accent)]" />
+											</div>
+											<div>
+												<span
+													class="mb-0.5 block text-[10px] font-bold tracking-widest text-[var(--whois-text-muted)] uppercase"
+													>Location</span
+												>
+												<p class="text-sm font-bold text-[var(--whois-text)]">
+													{activeReport.location || 'Unknown'}
+												</p>
+											</div>
+										</button>
+									{:else}
+										<div
+											class="flex min-w-[160px] shrink-0 items-center gap-3 border border-[var(--whois-border)] bg-[var(--whois-surface)] p-3"
+										>
+											<div
+												class="flex h-8 w-8 shrink-0 items-center justify-center border border-[var(--whois-border)] bg-[var(--whois-surface-2)]"
+											>
+												<MapPin size={14} class="text-[var(--whois-accent)]" />
+											</div>
+											<div>
+												<span
+													class="mb-0.5 block text-[10px] font-bold tracking-widest text-[var(--whois-text-muted)] uppercase"
+													>Location</span
+												>
+												<p class="text-sm font-bold text-[var(--whois-text)]">
+													{activeReport.location || 'Unknown'}
+												</p>
+											</div>
 										</div>
-									</button>
+									{/if}
 								</div>
 
 								<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
 									<!-- Left Column: Branding & Visuals -->
 									<div class="space-y-6 lg:col-span-2">
-										<!-- Design DNA Summary -->
-										<section
-											class="border border-[var(--whois-border)] bg-[var(--whois-surface)] p-6"
-										>
-											<div class="mb-6 flex items-center gap-2">
-												<Dna size={18} class="text-[var(--whois-accent)]" />
-												<h2
-													class="text-sm font-bold tracking-[0.2em] text-[var(--whois-accent)] uppercase"
-												>
-													Visual Style
-												</h2>
-											</div>
+										{#if !isIpOnly}
+											<!-- Design DNA Summary -->
+											<section
+												class="border border-[var(--whois-border)] bg-[var(--whois-surface)] p-6"
+											>
+												<div class="mb-6 flex items-center gap-2">
+													<Dna size={18} class="text-[var(--whois-accent)]" />
+													<h2
+														class="text-sm font-bold tracking-[0.2em] text-[var(--whois-accent)] uppercase"
+													>
+														Visual Style
+													</h2>
+												</div>
 
-											<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-												<!-- Typography & Lang -->
-												<div class="space-y-4">
-													<div>
-														<h3
-															class="mb-4 text-[10px] font-bold tracking-[0.2em] text-[var(--whois-text-muted)] uppercase"
-														>
-															Typography
-														</h3>
-														<div class="space-y-3">
-															<div
-																class="group flex items-center justify-between border border-[var(--whois-border)] bg-[var(--whois-surface-2)] px-3 py-2"
+												<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+													<!-- Typography & Lang -->
+													<div class="space-y-4">
+														<div>
+															<h3
+																class="mb-4 text-[10px] font-bold tracking-[0.2em] text-[var(--whois-text-muted)] uppercase"
 															>
-																<div class="flex flex-col">
+																Typography
+															</h3>
+															<div class="space-y-3">
+																<div
+																	class="group flex items-center justify-between border border-[var(--whois-border)] bg-[var(--whois-surface-2)] px-3 py-2"
+																>
+																	<div class="flex flex-col">
+																		<span
+																			class="mb-1 text-[10px] font-black tracking-widest text-[var(--whois-text-muted)] uppercase"
+																			>Heading</span
+																		>
+																		<span
+																			class="truncate text-sm font-bold text-[var(--whois-text)]"
+																			style="font-family: {activeReport.fonts?.[0] || 'Inter'}"
+																			>{activeReport.fonts?.[0] || 'Inter'}</span
+																		>
+																	</div>
 																	<span
-																		class="mb-1 text-[10px] font-black tracking-widest text-[var(--whois-text-muted)] uppercase"
-																		>Heading</span
-																	>
-																	<span
-																		class="truncate text-sm font-bold text-[var(--whois-text)]"
-																		style="font-family: {activeReport.fonts?.[0] || 'Inter'}"
-																		>{activeReport.fonts?.[0] || 'Inter'}</span
+																		class="font-serif text-xl text-[var(--whois-text-muted)] transition-colors group-hover:text-[var(--whois-accent)]"
+																		>Aa</span
 																	>
 																</div>
-																<span
-																	class="font-serif text-xl text-[var(--whois-text-muted)] transition-colors group-hover:text-[var(--whois-accent)]"
-																	>Aa</span
+																<div
+																	class="group flex items-center justify-between border border-[var(--whois-border)] bg-[var(--whois-surface-2)] px-3 py-2"
 																>
+																	<div class="flex flex-col">
+																		<span
+																			class="mb-1 text-[10px] font-black tracking-widest text-[var(--whois-text-muted)] uppercase"
+																			>Body</span
+																		>
+																		<span
+																			class="truncate text-sm font-medium text-[var(--whois-text)]"
+																			style="font-family: {activeReport.fonts?.[1] ||
+																				activeReport.fonts?.[0] ||
+																				'Inter'}"
+																			>{activeReport.fonts?.[1] ||
+																				activeReport.fonts?.[0] ||
+																				'Inter'}</span
+																		>
+																	</div>
+																	<span
+																		class="font-sans text-xl text-[var(--whois-text-muted)] transition-colors group-hover:text-[var(--whois-accent)]"
+																		>Aa</span
+																	>
+																</div>
+															</div>
+														</div>
+
+														<div class="flex gap-3">
+															<div
+																class="flex-1 border border-[var(--whois-border)] bg-[var(--whois-surface-2)] px-3 py-2"
+															>
+																<span
+																	class="mb-1 block text-[10px] font-black tracking-widest text-[var(--whois-text-muted)] uppercase"
+																	>Language</span
+																>
+																<div class="flex items-center gap-2">
+																	<span class="text-2xl font-black text-[var(--whois-text)]"
+																		>{activeReport.language || 'EN'}</span
+																	>
+																	<span class="text-[9px] font-medium text-[var(--whois-text-muted)]"
+																		>{activeReport.language
+																			? new Intl.DisplayNames(['en'], { type: 'language' }).of(
+																					activeReport.language
+																				)
+																			: 'English'}</span
+																	>
+																</div>
 															</div>
 															<div
-																class="group flex items-center justify-between border border-[var(--whois-border)] bg-[var(--whois-surface-2)] px-3 py-2"
+																class="flex-1 border border-[var(--whois-border)] bg-[var(--whois-accent-dim)] px-3 py-2"
+																style="border-color: var(--whois-accent)"
 															>
-																<div class="flex flex-col">
-																	<span
-																		class="mb-1 text-[10px] font-black tracking-widest text-[var(--whois-text-muted)] uppercase"
-																		>Body</span
-																	>
-																	<span
-																		class="truncate text-sm font-medium text-[var(--whois-text)]"
-																		style="font-family: {activeReport.fonts?.[1] ||
-																			activeReport.fonts?.[0] ||
-																			'Inter'}"
-																		>{activeReport.fonts?.[1] ||
-																			activeReport.fonts?.[0] ||
-																			'Inter'}</span
-																	>
-																</div>
 																<span
-																	class="font-sans text-xl text-[var(--whois-text-muted)] transition-colors group-hover:text-[var(--whois-accent)]"
-																	>Aa</span
+																	class="mb-1 block text-[10px] font-black tracking-widest text-[var(--whois-accent)] uppercase"
+																	>Theme</span
 																>
+																<div class="flex h-7 min-w-0 items-center gap-2">
+																	<div
+																		class="h-4 w-4 shrink-0 border border-[var(--whois-border)]"
+																		style="background-color: {activeReport.themeColor ||
+																			activeReport.brandColors?.[0] ||
+																			'#000'}"
+																	></div>
+																	<span
+																		class="truncate font-mono text-xs font-black text-[var(--whois-accent)] uppercase"
+																	>
+																		{activeReport.themeColor || 'None'}
+																	</span>
+																</div>
 															</div>
 														</div>
 													</div>
 
-													<div class="flex gap-3">
-														<div
-															class="flex-1 border border-[var(--whois-border)] bg-[var(--whois-surface-2)] px-3 py-2"
-														>
-															<span
-																class="mb-1 block text-[10px] font-black tracking-widest text-[var(--whois-text-muted)] uppercase"
-																>Language</span
+													<!-- Hierarchy & Social -->
+													<div class="space-y-6">
+														<div>
+															<h3
+																class="mb-4 text-[10px] font-bold tracking-[0.2em] text-[var(--whois-text-muted)] uppercase"
 															>
-															<div class="flex items-center gap-2">
-																<span class="text-2xl font-black text-[var(--whois-text)]"
-																	>{activeReport.language || 'EN'}</span
+																Hierarchy
+															</h3>
+															<div class="grid grid-cols-3 gap-3">
+																<div
+																	class="border border-[var(--whois-border)] bg-[var(--whois-surface-2)] px-2 py-2 text-center"
 																>
-																<span class="text-[9px] font-medium text-[var(--whois-text-muted)]"
-																	>{activeReport.language
-																		? new Intl.DisplayNames(['en'], { type: 'language' }).of(
-																				activeReport.language
-																			)
-																		: 'English'}</span
+																	<span
+																		class="mb-1 block text-[8px] font-bold text-[var(--whois-text-muted)] uppercase"
+																		>H1</span
+																	>
+																	<span class="text-lg font-bold text-[var(--whois-text)]"
+																		>{activeReport.headings?.h1 ?? 0}</span
+																	>
+																</div>
+																<div
+																	class="border border-[var(--whois-border)] bg-[var(--whois-surface-2)] px-2 py-2 text-center"
 																>
+																	<span
+																		class="mb-1 block text-[8px] font-bold text-[var(--whois-text-muted)] uppercase"
+																		>H2</span
+																	>
+																	<span class="text-lg font-bold text-[var(--whois-text)]"
+																		>{activeReport.headings?.h2 ?? 0}</span
+																	>
+																</div>
+																<div
+																	class="border border-[var(--whois-border)] bg-[var(--whois-surface-2)] px-2 py-2 text-center"
+																>
+																	<span
+																		class="mb-1 block text-[8px] font-bold text-[var(--whois-text-muted)] uppercase"
+																		>H3</span
+																	>
+																	<span class="text-lg font-bold text-[var(--whois-text)]"
+																		>{activeReport.headings?.h3 ?? 0}</span
+																	>
+																</div>
 															</div>
 														</div>
-														<div
-															class="flex-1 border border-[var(--whois-border)] bg-[var(--whois-accent-dim)] px-3 py-2"
-															style="border-color: var(--whois-accent)"
-														>
-															<span
-																class="mb-1 block text-[10px] font-black tracking-widest text-[var(--whois-accent)] uppercase"
-																>Theme</span
+
+														<div>
+															<h3
+																class="mb-4 text-[8px] font-bold tracking-[0.2em] text-[var(--whois-text-muted)] uppercase"
 															>
-															<div class="flex h-7 min-w-0 items-center gap-2">
-																<div
-																	class="h-4 w-4 shrink-0 border border-[var(--whois-border)]"
-																	style="background-color: {activeReport.themeColor ||
-																		activeReport.brandColors?.[0] ||
-																		'#000'}"
-																></div>
+																Socials
+															</h3>
+															<div class="flex flex-wrap gap-2">
+																{#if activeReport.socialLinks.length > 0}
+																	{#each activeReport.socialLinks as social}
+																		<a
+																			href={social.url}
+																			target="_blank"
+																			class="group flex items-center gap-1.5 border border-[var(--whois-border)] bg-[var(--whois-surface-2)] px-2 py-1.5 transition-colors hover:border-[var(--whois-accent)]"
+																		>
+																			<span
+																				class="text-[10px] font-bold text-[var(--whois-text-muted)] group-hover:text-[var(--whois-text)]"
+																				>{social.platform}</span
+																			>
+																			<ExternalLinkIcon
+																				size={10}
+																				class="text-[var(--whois-text-dim)] group-hover:text-[var(--whois-accent)]"
+																			/>
+																		</a>
+																	{/each}
+																{:else}
+																	<div
+																		class="px-1 py-1 text-[10px] tracking-widest text-[var(--whois-text-dim)] uppercase italic"
+																	>
+																		No social presence found.
+																	</div>
+																{/if}
+															</div>
+														</div>
+													</div>
+												</div>
+											</section>
+
+											<!-- Colors Card -->
+											<section
+												class="border border-[var(--whois-border)] bg-[var(--whois-surface)] p-6"
+											>
+												<div class="mb-6 flex items-center justify-between">
+													<div class="flex items-center gap-2">
+														<PaletteIcon size={18} class="text-[var(--whois-accent)]" />
+														<h2
+															class="text-xs font-bold tracking-[0.2em] text-[var(--whois-accent)] uppercase"
+														>
+															Brand Colors
+														</h2>
+													</div>
+													<button
+														class="flex items-center gap-1.5 text-[9px] font-bold tracking-widest text-[var(--whois-text-muted)] uppercase transition-colors hover:text-[var(--whois-accent)]"
+														onclick={downloadColors}
+													>
+														<Paintbrush size={10} />
+														Export CSS
+													</button>
+												</div>
+												<div class="flex flex-wrap gap-4">
+													{#each activeReport.brandColors as color}
+														<button
+															onclick={() => copyToClipboard(color, 'Color')}
+															class="group flex items-center gap-4 border border-[var(--whois-border)] bg-[var(--whois-surface-2)] p-2 pr-4 transition-all hover:border-[var(--whois-accent)]"
+														>
+															<div
+																class="h-10 w-10 shrink-0 border border-white/5"
+																style="background-color: {color}"
+															></div>
+															<div class="flex flex-col items-start justify-center">
 																<span
-																	class="truncate font-mono text-xs font-black text-[var(--whois-accent)] uppercase"
+																	class="mb-1.5 text-[8px] leading-none font-black text-[var(--whois-text-muted)] uppercase"
+																	>HEX</span
 																>
-																	{activeReport.themeColor || 'None'}
+																<span
+																	class="font-mono text-sm leading-none font-bold text-[var(--whois-text)] group-hover:text-[var(--whois-accent)]"
+																>
+																	{color}
 																</span>
 															</div>
-														</div>
-													</div>
+														</button>
+													{/each}
 												</div>
+											</section>
 
-												<!-- Hierarchy & Social -->
-												<div class="space-y-6">
-													<div>
-														<h3
-															class="mb-4 text-[10px] font-bold tracking-[0.2em] text-[var(--whois-text-muted)] uppercase"
-														>
-															Hierarchy
-														</h3>
-														<div class="grid grid-cols-3 gap-3">
-															<div
-																class="border border-[var(--whois-border)] bg-[var(--whois-surface-2)] px-2 py-2 text-center"
-															>
-																<span
-																	class="mb-1 block text-[8px] font-bold text-[var(--whois-text-muted)] uppercase"
-																	>H1</span
-																>
-																<span class="text-lg font-bold text-[var(--whois-text)]"
-																	>{activeReport.headings?.h1 ?? 0}</span
-																>
-															</div>
-															<div
-																class="border border-[var(--whois-border)] bg-[var(--whois-surface-2)] px-2 py-2 text-center"
-															>
-																<span
-																	class="mb-1 block text-[8px] font-bold text-[var(--whois-text-muted)] uppercase"
-																	>H2</span
-																>
-																<span class="text-lg font-bold text-[var(--whois-text)]"
-																	>{activeReport.headings?.h2 ?? 0}</span
-																>
-															</div>
-															<div
-																class="border border-[var(--whois-border)] bg-[var(--whois-surface-2)] px-2 py-2 text-center"
-															>
-																<span
-																	class="mb-1 block text-[8px] font-bold text-[var(--whois-text-muted)] uppercase"
-																	>H3</span
-																>
-																<span class="text-lg font-bold text-[var(--whois-text)]"
-																	>{activeReport.headings?.h3 ?? 0}</span
-																>
-															</div>
-														</div>
-													</div>
-
-													<div>
-														<h3
-															class="mb-4 text-[8px] font-bold tracking-[0.2em] text-[var(--whois-text-muted)] uppercase"
-														>
-															Socials
-														</h3>
-														<div class="flex flex-wrap gap-2">
-															{#if activeReport.socialLinks.length > 0}
-																{#each activeReport.socialLinks as social}
-																	<a
-																		href={social.url}
-																		target="_blank"
-																		class="group flex items-center gap-1.5 border border-[var(--whois-border)] bg-[var(--whois-surface-2)] px-2 py-1.5 transition-colors hover:border-[var(--whois-accent)]"
-																	>
-																		<span
-																			class="text-[10px] font-bold text-[var(--whois-text-muted)] group-hover:text-[var(--whois-text)]"
-																			>{social.platform}</span
-																		>
-																		<ExternalLinkIcon
-																			size={10}
-																			class="text-[var(--whois-text-dim)] group-hover:text-[var(--whois-accent)]"
-																		/>
-																	</a>
-																{/each}
-															{:else}
-																<div
-																	class="px-1 py-1 text-[10px] tracking-widest text-[var(--whois-text-dim)] uppercase italic"
-																>
-																	No social presence found.
-																</div>
-															{/if}
-														</div>
-													</div>
-												</div>
-											</div>
-										</section>
-
-										<!-- Colors Card -->
-										<section
-											class="border border-[var(--whois-border)] bg-[var(--whois-surface)] p-6"
-										>
-											<div class="mb-6 flex items-center justify-between">
-												<div class="flex items-center gap-2">
-													<PaletteIcon size={18} class="text-[var(--whois-accent)]" />
+											<!-- Tech Stack Card -->
+											<section
+												class="border border-[var(--whois-border)] bg-[var(--whois-surface)] p-6"
+											>
+												<div class="mb-6 flex items-center gap-2">
+													<LayersIcon size={18} class="text-[var(--whois-accent)]" />
 													<h2
 														class="text-xs font-bold tracking-[0.2em] text-[var(--whois-accent)] uppercase"
 													>
-														Brand Colors
+														Tech Stack
 													</h2>
 												</div>
-												<button
-													class="flex items-center gap-1.5 text-[9px] font-bold tracking-widest text-[var(--whois-text-muted)] uppercase transition-colors hover:text-[var(--whois-accent)]"
-													onclick={downloadColors}
-												>
-													<Paintbrush size={10} />
-													Export CSS
-												</button>
-											</div>
-											<div class="flex flex-wrap gap-4">
-												{#each activeReport.brandColors as color}
-													<button
-														onclick={() => copyToClipboard(color, 'Color')}
-														class="group flex items-center gap-4 border border-[var(--whois-border)] bg-[var(--whois-surface-2)] p-2 pr-4 transition-all hover:border-[var(--whois-accent)]"
-													>
-														<div
-															class="h-10 w-10 shrink-0 border border-white/5"
-															style="background-color: {color}"
-														></div>
-														<div class="flex flex-col items-start justify-center">
-															<span
-																class="mb-1.5 text-[8px] leading-none font-black text-[var(--whois-text-muted)] uppercase"
-																>HEX</span
-															>
-															<span
-																class="font-mono text-sm leading-none font-bold text-[var(--whois-text)] group-hover:text-[var(--whois-accent)]"
-															>
-																{color}
-															</span>
-														</div>
-													</button>
-												{/each}
-											</div>
-										</section>
-
-										<!-- Tech Stack Card -->
-										<section
-											class="border border-[var(--whois-border)] bg-[var(--whois-surface)] p-6"
-										>
-											<div class="mb-6 flex items-center gap-2">
-												<LayersIcon size={18} class="text-[var(--whois-accent)]" />
-												<h2
-													class="text-xs font-bold tracking-[0.2em] text-[var(--whois-accent)] uppercase"
-												>
-													Tech Stack
-												</h2>
-											</div>
-											<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-												{#each activeReport.techStack as tech}
-													<a
-														href={tech.website}
-														target="_blank"
-														class="group flex items-center justify-between border border-[var(--whois-border)] bg-[var(--whois-surface-2)] p-3 transition-all hover:border-[var(--whois-accent)]"
-													>
-														<div class="flex flex-col">
-															<span class="text-sm font-bold text-[var(--whois-text)]"
-																>{tech.name}</span
-															>
-															<span
-																class="mt-1 text-[10px] tracking-widest text-[var(--whois-text-muted)] uppercase"
-																>{tech.category}</span
-															>
-														</div>
-														<div
-															class="border border-[var(--whois-border)] px-1.5 py-0.5 text-[10px] tracking-widest text-[var(--whois-text-muted)] uppercase transition-colors group-hover:border-[var(--whois-accent)] group-hover:text-[var(--whois-accent)]"
+												<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+													{#each activeReport.techStack as tech}
+														<a
+															href={tech.website}
+															target="_blank"
+															class="group flex items-center justify-between border border-[var(--whois-border)] bg-[var(--whois-surface-2)] p-3 transition-all hover:border-[var(--whois-accent)]"
 														>
-															{tech.category}
-														</div>
-													</a>
-												{/each}
-											</div>
-										</section>
+															<div class="flex flex-col">
+																<span class="text-sm font-bold text-[var(--whois-text)]"
+																	>{tech.name}</span
+																>
+																<span
+																	class="mt-1 text-[10px] tracking-widest text-[var(--whois-text-muted)] uppercase"
+																	>{tech.category}</span
+																>
+															</div>
+															<div
+																class="border border-[var(--whois-border)] px-1.5 py-0.5 text-[10px] tracking-widest text-[var(--whois-text-muted)] uppercase transition-colors group-hover:border-[var(--whois-accent)] group-hover:text-[var(--whois-accent)]"
+															>
+																{tech.category}
+															</div>
+														</a>
+													{/each}
+												</div>
+											</section>
+										{/if}
 
 										<!-- Infrastructure & Propagation Audit -->
 										<div class="mt-8">
@@ -1175,7 +1205,7 @@ export default ${report.name.replace(/\s+/g, '')}BrandCard;
 											</section>
 										{/if}
 
-										{#if activeReport.redFlags && activeReport.redFlags.length > 0}
+										{#if !isIpOnly}
 											<!-- Red Flags Card -->
 											<section class="border border-red-950/30 bg-red-950/10 p-6">
 												<div class="mb-6 flex items-center gap-2">
@@ -1206,121 +1236,123 @@ export default ${report.name.replace(/\s+/g, '')}BrandCard;
 
 									<!-- Right Column: Metadata & Socials -->
 									<div class="space-y-6">
-										<!-- Security & Discovery Card -->
-										<section
-											class="border border-[var(--whois-border)] bg-[var(--whois-surface)] p-6"
-										>
-											<div class="mb-6 flex items-center gap-2">
-												<Fingerprint size={18} class="text-[var(--whois-accent)]" />
-												<h2
-													class="text-xs font-bold tracking-[0.2em] text-[var(--whois-accent)] uppercase"
-												>
-													Domain & Email
-												</h2>
-											</div>
+										{#if !isIpOnly}
+											<!-- Security & Discovery Card -->
+											<section
+												class="border border-[var(--whois-border)] bg-[var(--whois-surface)] p-6"
+											>
+												<div class="mb-6 flex items-center gap-2">
+													<Fingerprint size={18} class="text-[var(--whois-accent)]" />
+													<h2
+														class="text-xs font-bold tracking-[0.2em] text-[var(--whois-accent)] uppercase"
+													>
+														Domain & Email
+													</h2>
+												</div>
 
-											<div class="space-y-8">
-												<!-- Email Protection -->
-												<div>
-													<div class="mb-4 flex items-center gap-2">
-														<Mail size={14} class="text-[var(--whois-text-muted)]" />
-														<span
-															class="text-[8px] font-bold tracking-[0.2em] text-[var(--whois-text-muted)] uppercase"
-															>Email safety</span
-														>
-													</div>
-													<div class="grid grid-cols-2 gap-3">
-														<div
-															class="flex items-center justify-between border border-[var(--whois-border)] bg-[var(--whois-surface-2)] px-3 py-2"
-														>
-															<span class="text-xs font-bold text-[var(--whois-text)]">SPF</span>
-															<div
-																class="border border-[var(--whois-border)] px-1.5 py-0.5 text-[8px] tracking-widest uppercase {activeReport
-																	.emailSecurity.spf
-																	? 'bg-[var(--whois-accent-dim)] text-[var(--whois-accent)]'
-																	: 'bg-red-500/10 text-red-500'} font-black"
+												<div class="space-y-8">
+													<!-- Email Protection -->
+													<div>
+														<div class="mb-4 flex items-center gap-2">
+															<Mail size={14} class="text-[var(--whois-text-muted)]" />
+															<span
+																class="text-[8px] font-bold tracking-[0.2em] text-[var(--whois-text-muted)] uppercase"
+																>Email safety</span
 															>
-																{activeReport.emailSecurity.spf ? 'OK' : 'MISSING'}
+														</div>
+														<div class="grid grid-cols-2 gap-3">
+															<div
+																class="flex items-center justify-between border border-[var(--whois-border)] bg-[var(--whois-surface-2)] px-3 py-2"
+															>
+																<span class="text-xs font-bold text-[var(--whois-text)]">SPF</span>
+																<div
+																	class="border border-[var(--whois-border)] px-1.5 py-0.5 text-[8px] tracking-widest uppercase {activeReport
+																		.emailSecurity.spf
+																		? 'bg-[var(--whois-accent-dim)] text-[var(--whois-accent)]'
+																		: 'bg-red-500/10 text-red-500'} font-black"
+																>
+																	{activeReport.emailSecurity.spf ? 'OK' : 'MISSING'}
+																</div>
+															</div>
+															<div
+																class="flex items-center justify-between border border-[var(--whois-border)] bg-[var(--whois-surface-2)] px-3 py-2"
+															>
+																<span class="text-xs font-bold text-[var(--whois-text)]">DMARC</span>
+																<div
+																	class="border border-[var(--whois-border)] px-1.5 py-0.5 text-[8px] tracking-widest uppercase {activeReport
+																		.emailSecurity.dmarc
+																		? 'bg-[var(--whois-accent-dim)] text-[var(--whois-accent)]'
+																		: 'bg-red-500/10 text-red-500'} font-black"
+																>
+																	{activeReport.emailSecurity.dmarc ? 'OK' : 'MISSING'}
+																</div>
 															</div>
 														</div>
-														<div
-															class="flex items-center justify-between border border-[var(--whois-border)] bg-[var(--whois-surface-2)] px-3 py-2"
-														>
-															<span class="text-xs font-bold text-[var(--whois-text)]">DMARC</span>
-															<div
-																class="border border-[var(--whois-border)] px-1.5 py-0.5 text-[8px] tracking-widest uppercase {activeReport
-																	.emailSecurity.dmarc
-																	? 'bg-[var(--whois-accent-dim)] text-[var(--whois-accent)]'
-																	: 'bg-red-500/10 text-red-500'} font-black"
+													</div>
+
+													<!-- Crawler Config -->
+													<div>
+														<div class="mb-4 flex items-center gap-2">
+															<SearchIcon size={14} class="text-[var(--whois-text-muted)]" />
+															<span
+																class="text-[8px] font-bold tracking-[0.2em] text-[var(--whois-text-muted)] uppercase"
+																>Crawler setup</span
 															>
-																{activeReport.emailSecurity.dmarc ? 'OK' : 'MISSING'}
+														</div>
+														<div class="space-y-3">
+															<div
+																class="flex items-center justify-between border border-[var(--whois-border)] bg-[var(--whois-surface-2)] px-3 py-2"
+															>
+																<div class="flex items-center gap-2">
+																	<FileText size={14} class="text-[var(--whois-text-dim)]" />
+																	<span class="text-xs font-bold text-[var(--whois-text)]"
+																		>Robots.txt</span
+																	>
+																</div>
+																{#if activeReport.crawling.robots}
+																	<a
+																		href={activeReport.crawling.robots}
+																		target="_blank"
+																		class="text-[10px] font-bold tracking-widest text-[var(--whois-accent)] uppercase hover:underline"
+																		>View</a
+																	>
+																{:else}
+																	<div
+																		class="border border-[var(--whois-border)] bg-red-500/10 px-1.5 py-0.5 text-[8px] font-black tracking-widest text-red-500 uppercase"
+																	>
+																		NULL
+																	</div>
+																{/if}
+															</div>
+															<div
+																class="flex items-center justify-between border border-[var(--whois-border)] bg-[var(--whois-surface-2)] px-3 py-2"
+															>
+																<div class="flex items-center gap-2">
+																	<MapIcon size={14} class="text-[var(--whois-text-dim)]" />
+																	<span class="text-xs font-bold text-[var(--whois-text)]"
+																		>Sitemap</span
+																	>
+																</div>
+																{#if activeReport.crawling.sitemap}
+																	<a
+																		href={activeReport.crawling.sitemap}
+																		target="_blank"
+																		class="max-w-[80px] truncate text-[10px] font-bold tracking-widest text-[var(--whois-accent)] uppercase hover:underline"
+																		>View</a
+																	>
+																{:else}
+																	<div
+																		class="border border-[var(--whois-border)] bg-red-500/10 px-1.5 py-0.5 text-[8px] font-black tracking-widest text-red-500 uppercase"
+																	>
+																		NULL
+																	</div>
+																{/if}
 															</div>
 														</div>
 													</div>
 												</div>
-
-												<!-- Crawler Config -->
-												<div>
-													<div class="mb-4 flex items-center gap-2">
-														<SearchIcon size={14} class="text-[var(--whois-text-muted)]" />
-														<span
-															class="text-[8px] font-bold tracking-[0.2em] text-[var(--whois-text-muted)] uppercase"
-															>Crawler setup</span
-														>
-													</div>
-													<div class="space-y-3">
-														<div
-															class="flex items-center justify-between border border-[var(--whois-border)] bg-[var(--whois-surface-2)] px-3 py-2"
-														>
-															<div class="flex items-center gap-2">
-																<FileText size={14} class="text-[var(--whois-text-dim)]" />
-																<span class="text-xs font-bold text-[var(--whois-text)]"
-																	>Robots.txt</span
-																>
-															</div>
-															{#if activeReport.crawling.robots}
-																<a
-																	href={activeReport.crawling.robots}
-																	target="_blank"
-																	class="text-[10px] font-bold tracking-widest text-[var(--whois-accent)] uppercase hover:underline"
-																	>View</a
-																>
-															{:else}
-																<div
-																	class="border border-[var(--whois-border)] bg-red-500/10 px-1.5 py-0.5 text-[8px] font-black tracking-widest text-red-500 uppercase"
-																>
-																	NULL
-																</div>
-															{/if}
-														</div>
-														<div
-															class="flex items-center justify-between border border-[var(--whois-border)] bg-[var(--whois-surface-2)] px-3 py-2"
-														>
-															<div class="flex items-center gap-2">
-																<MapIcon size={14} class="text-[var(--whois-text-dim)]" />
-																<span class="text-xs font-bold text-[var(--whois-text)]"
-																	>Sitemap</span
-																>
-															</div>
-															{#if activeReport.crawling.sitemap}
-																<a
-																	href={activeReport.crawling.sitemap}
-																	target="_blank"
-																	class="max-w-[80px] truncate text-[10px] font-bold tracking-widest text-[var(--whois-accent)] uppercase hover:underline"
-																	>View</a
-																>
-															{:else}
-																<div
-																	class="border border-[var(--whois-border)] bg-red-500/10 px-1.5 py-0.5 text-[8px] font-black tracking-widest text-red-500 uppercase"
-																>
-																	NULL
-																</div>
-															{/if}
-														</div>
-													</div>
-												</div>
-											</div>
-										</section>
+											</section>
+										{/if}
 
 										<!-- Security Audit Card -->
 										<section

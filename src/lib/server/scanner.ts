@@ -80,6 +80,9 @@ export async function scanUrl(targetUrl: string): Promise<SiteReport> {
     targetUrl = 'https://' + targetUrl;
   }
 
+  const urlObj = new URL(targetUrl);
+  const domain = urlObj.hostname;
+
   const headersMap = {
     'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -88,22 +91,35 @@ export async function scanUrl(targetUrl: string): Promise<SiteReport> {
     'Cache-Control': 'no-cache'
   };
 
-  const apiKey = env.SCRAPINGANT_API_KEY;
+  // Use $env/dynamic/private for Vercel/Production and fallback to process.env for local/Node environments
+  const apiKey = env.SCRAPINGANT_API_KEY || (typeof process !== 'undefined' ? (process.env as any).SCRAPINGANT_API_KEY : undefined);
+  const hasValidKey = apiKey && apiKey !== 'your_api_key_here' && apiKey.length > 5;
+
+  if (!hasValidKey) {
+    console.warn("[scanner.ts] SCRAPINGANT_API_KEY is not set or invalid. WAF bypass will not be available.");
+  }
+  
   let response;
   let html = '';
   let finalUrl = targetUrl;
   let usedProxy = false;
 
+  // Start network checks IMMEDIATELY in parallel with the HTML fetch
+  const dnsPromise = fetchDNS(domain).catch(() => []);
+  const sslPromise = fetchSSL(domain).catch(() => undefined);
+
   try {
     console.log(`[scanner.ts] Attempting initial fetch to ${targetUrl}`);
-    response = await fetchWithTimeout(targetUrl, { headers: headersMap, redirect: 'follow' }, 8000);
+    // Reduced timeout from 8s to 5s for faster initial probe
+    response = await fetchWithTimeout(targetUrl, { headers: headersMap, redirect: 'follow' }, 5000);
     console.log(`[scanner.ts] Initial fetch completed. Status: ${response.status}`);
 
     if (!response.ok) {
-      if ((response.status === 403 || response.status === 503) && apiKey) {
+      if ((response.status === 403 || response.status === 503) && hasValidKey) {
         console.log(`[scanner.ts] WAF block detected (${response.status}). Falling back to ScrapingAnt...`);
-        html = await fetchWithScrapingAnt(targetUrl, apiKey);
+        html = await fetchWithScrapingAnt(targetUrl, apiKey!);
         usedProxy = true;
+        response = { headers: new Headers(), ok: true, status: 200 } as any;
       } else {
         throw new Error(`Site returned ${response.status}: ${response.statusText}`);
       }
@@ -113,19 +129,21 @@ export async function scanUrl(targetUrl: string): Promise<SiteReport> {
     }
   } catch (err: any) {
     console.error(`[scanner.ts] Initial fetch threw an error:`, err);
+    
     const isSslError = err.message && (
-      err.message.includes('certificate') || 
-      err.message.includes('fetch failed') || 
+      err.message.toLowerCase().includes('certificate') || 
+      err.message.toLowerCase().includes('fetch failed') || 
+      err.message.toLowerCase().includes('unable to verify') ||
       err.code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE' ||
-      err.code === 'CERT_HAS_EXPIRED'
+      err.code === 'CERT_HAS_EXPIRED' ||
+      err.name === 'TypeError'
     );
 
-    if (isSslError && apiKey) {
+    if (isSslError && hasValidKey) {
       console.log(`[scanner.ts] SSL/Fetch error detected. Falling back to ScrapingAnt...`);
       try {
-        html = await fetchWithScrapingAnt(targetUrl, apiKey);
+        html = await fetchWithScrapingAnt(targetUrl, apiKey!);
         usedProxy = true;
-        // Mock a response object for the rest of the logic
         response = { headers: new Headers(), ok: true, status: 200 } as any;
       } catch (proxyErr: any) {
         throw new Error(`Target blocked crawler and ScrapingAnt fallback failed: ${proxyErr.message}`);
@@ -145,11 +163,13 @@ export async function scanUrl(targetUrl: string): Promise<SiteReport> {
     if (match && match[1]) {
       const redirectUrl = new URL(match[1].trim(), finalUrl).href;
       try {
-        response = await fetchWithTimeout(redirectUrl, { headers: headersMap, redirect: 'follow' }, 5000);
-        if (response.ok) {
-          finalUrl = response.url;
-          html = await response.text();
+        const redirectResponse = await fetchWithTimeout(redirectUrl, { headers: headersMap, redirect: 'follow' }, 4000);
+        if (redirectResponse.ok) {
+          finalUrl = redirectResponse.url;
+          html = await redirectResponse.text();
           $ = cheerio.load(html);
+          // Update response to use the redirect response for headers
+          response = redirectResponse;
         }
       } catch (err) {
         console.error('Meta refresh fetch failed:', err);
@@ -157,15 +177,9 @@ export async function scanUrl(targetUrl: string): Promise<SiteReport> {
     }
   }
 
-  const urlObj = new URL(finalUrl);
-  const domain = urlObj.hostname;
-
-  // Run network checks concurrently
-  const [dnsRecords, sslCert, securityHeaders] = await Promise.all([
-    fetchDNS(domain).catch(() => []),
-    fetchSSL(domain).catch(() => undefined),
-    analyzeHeaders(response.headers)
-  ]);
+  // Await the network results that were started at the very beginning
+  const [dnsRecords, sslCert] = await Promise.all([dnsPromise, sslPromise]);
+  const securityHeaders = analyzeHeaders(response.headers);
 
   const cspHeader = response.headers.get('content-security-policy');
   const cspReport = analyzeCSP(cspHeader);

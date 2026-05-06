@@ -23,6 +23,27 @@ export const load: PageServerLoad = ({ params }) => {
     };
   }
 
+  const skeletonReport = (domain: string, data: any = {}): any => ({
+    name: domain,
+    domain: domain,
+    favicon: `https://www.google.com/s2/favicons?domain=${domain}&sz=128`,
+    brandColors: ['#000000', '#ffffff'],
+    fonts: [],
+    title: domain,
+    description: 'Technical profile for ' + domain,
+    techStack: [],
+    socialLinks: [],
+    dns: [],
+    subdomains: [],
+    redFlags: [],
+    security: [],
+    securityScore: 'B',
+    emailSecurity: { spf: false, dmarc: false },
+    crawling: {},
+    updatedAt: new Date().toISOString(),
+    ...data
+  });
+
   // We don't await the scan here. We return a promise so SvelteKit streams it.
   const fetchReport = async () => {
     try {
@@ -37,13 +58,11 @@ export const load: PageServerLoad = ({ params }) => {
         } catch (e) {
           // If website scan fails, provide network-only info
           const networkData = await getNetworkOnlyReport(domain);
-          return {
+          return skeletonReport(domain, {
             ...networkData,
-            name: `Node: ${domain}`,
-            domain: domain,
-            needsClientFetch: false,
-            updatedAt: new Date().toISOString()
-          };
+            name: domain,
+            needsClientFetch: false
+          });
         }
       }
 
@@ -59,19 +78,18 @@ export const load: PageServerLoad = ({ params }) => {
         err.message.includes('503') || 
         err.message.includes('Forbidden') ||
         err.message.includes('fetch failed') ||
-        err.message.includes('certificate')
+        err.message.includes('certificate') ||
+        err.message.includes('unable to verify')
       );
 
       if (isBlockedOrSsl) {
         try {
           const networkData = await getNetworkOnlyReport(domain);
-          return {
+          return skeletonReport(domain, {
             ...networkData,
-            name: domain,
-            domain: domain,
-            needsClientFetch: true,
+            needsClientFetch: true, // Browser might have better luck with some sites
             error: null
-          };
+          });
         } catch (networkErr) {
           console.error('[page.server.ts] Network-only fallback failed:', networkErr);
         }
