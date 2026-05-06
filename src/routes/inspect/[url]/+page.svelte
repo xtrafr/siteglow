@@ -425,18 +425,18 @@ export default ${report.name.replace(/\s+/g, '')}BrandCard;
 
 <svelte:head>
 	{#if report}
-		<title>{report.name}</title>
+		<title>WebDNA: {report.name}</title>
 		<meta name="description" content="Website analysis tool." />
 
 		<!-- OpenGraph / Facebook -->
 		<meta property="og:type" content="website" />
-		<meta property="og:title" content={report.name} />
+		<meta property="og:title" content="WebDNA: {report.name}" />
 		<meta property="og:description" content="Website analysis powered by WebDNA." />
 		<meta property="og:image" content="https://webdna.xtra.wtf/og-image.png" />
 
 		<!-- Twitter -->
 		<meta property="twitter:card" content="summary_large_image" />
-		<meta property="twitter:title" content={report.name} />
+		<meta property="twitter:title" content="WebDNA: {report.name}" />
 		<meta property="twitter:description" content="Website analysis powered by WebDNA." />
 		<meta property="twitter:image" content="https://webdna.xtra.wtf/og-image.png" />
 	{:else}

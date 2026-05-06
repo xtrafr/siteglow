@@ -21,7 +21,7 @@
           <div class="flex items-center space-x-2 text-neutral-500 dark:text-neutral-400">
             <Files size={18} strokeWidth={1.5} />
             <p class="text-sm">
-              <span class="font-mono">7</span>
+              <span class="font-mono">6</span>
               <span>core modules</span>
             </p>
           </div>
