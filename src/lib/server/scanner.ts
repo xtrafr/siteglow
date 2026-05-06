@@ -28,11 +28,11 @@ export async function getNetworkOnlyReport(domain: string): Promise<Partial<Site
     fetchSSL(domain).catch(() => undefined),
   ]);
 
-  // Resolve IP Info from the first A record
-  let firstA = dnsRecords.find(r => r.type === 'A')?.value;
+  const isIp = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(domain);
+  let firstA = isIp ? domain : dnsRecords.find(r => r.type === 'A')?.value;
 
   // If no A record found for the subdomain (e.g. www), try the root domain
-  if (!firstA && domain.split('.').length > 2) {
+  if (!firstA && !isIp && domain.split('.').length > 2) {
     const rootDomain = domain.split('.').slice(-2).join('.');
     const rootDns = await fetchDNS(rootDomain).catch(() => []);
     firstA = rootDns.find(r => r.type === 'A')?.value;
@@ -55,6 +55,25 @@ export async function getNetworkOnlyReport(domain: string): Promise<Partial<Site
   };
 }
 
+async function fetchWithScrapingAnt(targetUrl: string, apiKey: string) {
+  const proxyUrl = `https://api.scrapingant.com/v2/general?url=${encodeURIComponent(targetUrl)}&x-api-key=${apiKey}&browser=false`;
+  console.log(`[scanner.ts] Fetching from ScrapingAnt...`);
+  let proxyResponse = await fetchWithTimeout(proxyUrl, {}, 20000);
+
+  if (proxyResponse.status === 409) {
+    console.log(`[scanner.ts] Hit ScrapingAnt concurrency limit (409). Waiting 2.5s and retrying...`);
+    await new Promise(resolve => setTimeout(resolve, 2500));
+    proxyResponse = await fetchWithTimeout(proxyUrl, {}, 20000);
+  }
+
+  if (!proxyResponse.ok) {
+    const errorText = await proxyResponse.text();
+    throw new Error(`ScrapingAnt API failed: ${proxyResponse.status} ${errorText}`);
+  }
+
+  return await proxyResponse.text();
+}
+
 export async function scanUrl(targetUrl: string): Promise<SiteReport> {
   // Ensure protocol
   if (!targetUrl.startsWith('http')) {
@@ -69,69 +88,51 @@ export async function scanUrl(targetUrl: string): Promise<SiteReport> {
     'Cache-Control': 'no-cache'
   };
 
+  const apiKey = env.SCRAPINGANT_API_KEY;
   let response;
+  let html = '';
+  let finalUrl = targetUrl;
+  let usedProxy = false;
+
   try {
     console.log(`[scanner.ts] Attempting initial fetch to ${targetUrl}`);
     response = await fetchWithTimeout(targetUrl, { headers: headersMap, redirect: 'follow' }, 8000);
     console.log(`[scanner.ts] Initial fetch completed. Status: ${response.status}`);
-  } catch (err: any) {
-    console.error(`[scanner.ts] Initial fetch threw an error:`, err);
-    throw new Error(`Connection timed out or failed: ${err.message}`);
-  }
 
-  let html = '';
-  let finalUrl = targetUrl;
-
-  if (!response.ok) {
-    console.log(`[scanner.ts] Response not ok: ${response.status} ${response.statusText}`);
-    if (response.status === 403 || response.status === 503) {
-      console.log(`[scanner.ts] Cloudflare/WAF block detected for ${targetUrl}. Attempting fallback via ScrapingAnt...`);
-      try {
-        const apiKey = env.SCRAPINGANT_API_KEY;
-        if (!apiKey) {
-          console.error("[scanner.ts] SCRAPINGANT_API_KEY is missing!");
-          throw new Error("SCRAPINGANT_API_KEY environment variable is not set. Cannot bypass Cloudflare.");
-        }
-
-        // Added browser=false to make the fetch 10x faster (bypasses headless Chrome, just uses proxy network)
-        const proxyUrl = `https://api.scrapingant.com/v2/general?url=${encodeURIComponent(targetUrl)}&x-api-key=${apiKey}&browser=false`;
-        console.log(`[scanner.ts] Fetching from ScrapingAnt...`);
-        let proxyResponse = await fetchWithTimeout(proxyUrl, {}, 15000);
-        console.log(`[scanner.ts] ScrapingAnt responded with status: ${proxyResponse.status}`);
-
-        let proxyText = await proxyResponse.text();
-
-        // Handle 409 Concurrency Limit (Free tier only allows 1 request at a time)
-        if (proxyResponse.status === 409) {
-          console.log(`[scanner.ts] Hit ScrapingAnt concurrency limit (409). Waiting 2.5s and retrying...`);
-          await new Promise(resolve => setTimeout(resolve, 2500));
-          proxyResponse = await fetchWithTimeout(proxyUrl, {}, 15000);
-          proxyText = await proxyResponse.text();
-          console.log(`[scanner.ts] ScrapingAnt retry status: ${proxyResponse.status}`);
-        }
-
-        if (!proxyResponse.ok) {
-          console.error(`[scanner.ts] ScrapingAnt API error response:`, proxyText);
-          throw new Error(`ScrapingAnt API failed: ${proxyResponse.status} ${proxyText}`);
-        }
-
-        html = proxyText;
-        if (!html) throw new Error("Empty response from ScrapingAnt");
-
-        // Try to extract the final URL if ScrapingAnt followed redirects
-        // Note: ScrapingAnt doesn't easily return the final URL in the 'general' endpoint 
-        // without extra metadata, so we'll stick to targetUrl for now but ensured it's set.
-        finalUrl = targetUrl;
-      } catch (proxyErr: any) {
-        console.error(`[scanner.ts] ScrapingAnt fallback failed:`, proxyErr);
-        throw new Error(`The target website blocked our crawler, and the ScrapingAnt fallback failed. (${proxyErr.message})`);
+    if (!response.ok) {
+      if ((response.status === 403 || response.status === 503) && apiKey) {
+        console.log(`[scanner.ts] WAF block detected (${response.status}). Falling back to ScrapingAnt...`);
+        html = await fetchWithScrapingAnt(targetUrl, apiKey);
+        usedProxy = true;
+      } else {
+        throw new Error(`Site returned ${response.status}: ${response.statusText}`);
       }
     } else {
-      throw new Error(`Site returned ${response.status}: ${response.statusText}`);
+      html = await response.text();
+      finalUrl = response.url;
     }
-  } else {
-    html = await response.text();
-    finalUrl = response.url;
+  } catch (err: any) {
+    console.error(`[scanner.ts] Initial fetch threw an error:`, err);
+    const isSslError = err.message && (
+      err.message.includes('certificate') || 
+      err.message.includes('fetch failed') || 
+      err.code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE' ||
+      err.code === 'CERT_HAS_EXPIRED'
+    );
+
+    if (isSslError && apiKey) {
+      console.log(`[scanner.ts] SSL/Fetch error detected. Falling back to ScrapingAnt...`);
+      try {
+        html = await fetchWithScrapingAnt(targetUrl, apiKey);
+        usedProxy = true;
+        // Mock a response object for the rest of the logic
+        response = { headers: new Headers(), ok: true, status: 200 } as any;
+      } catch (proxyErr: any) {
+        throw new Error(`Target blocked crawler and ScrapingAnt fallback failed: ${proxyErr.message}`);
+      }
+    } else {
+      throw new Error(`Connection timed out or failed: ${err.message}`);
+    }
   }
 
   console.log(`[scanner.ts] HTML fetched successfully. Length: ${html.length}`);

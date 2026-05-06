@@ -27,20 +27,48 @@ export const load: PageServerLoad = ({ params }) => {
   const fetchReport = async () => {
     try {
       console.log(`[page.server.ts] Starting background scan for URL: ${url}`);
+      
+      const isIp = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(domain);
+
+      if (isIp) {
+        try {
+          // Try to scan it as a website first
+          return await scanUrl(url);
+        } catch (e) {
+          // If website scan fails, provide network-only info
+          const networkData = await getNetworkOnlyReport(domain);
+          return {
+            ...networkData,
+            name: `Node: ${domain}`,
+            domain: domain,
+            needsClientFetch: false,
+            updatedAt: new Date().toISOString()
+          };
+        }
+      }
+
       const report = await scanUrl(url);
       console.log(`[page.server.ts] Background scan successful for URL: ${url}`);
       return report;
     } catch (err: any) {
       console.error('[page.server.ts] Background scan failed:', err.message);
 
-      // If it's a 403, try to provide network info as fallback
-      if (err.message && (err.message.includes('403') || err.message.includes('Forbidden'))) {
+      // If it's a 403, 503 or SSL error, try to provide network info as fallback
+      const isBlockedOrSsl = err.message && (
+        err.message.includes('403') || 
+        err.message.includes('503') || 
+        err.message.includes('Forbidden') ||
+        err.message.includes('fetch failed') ||
+        err.message.includes('certificate')
+      );
+
+      if (isBlockedOrSsl) {
         try {
-          let domain = url;
-          try { domain = new URL(url.startsWith('http') ? url : `https://${url}`).hostname; } catch { }
           const networkData = await getNetworkOnlyReport(domain);
           return {
-            networkData,
+            ...networkData,
+            name: domain,
+            domain: domain,
             needsClientFetch: true,
             error: null
           };
